@@ -1,2 +1,2 @@
 # Viva_Aerobus
-Una visualización de nuestra propuesta para llegar a una solución concreta al reto aportado.
+Una visualización de nuestra propuesta para llegar a una solución concreta al reto aportado. El reto de Viva Aerobus consiste en la transformación de los datos de los Vuelos y Ventas de productos a predicciones de volumen de pasajero y omptimización de carga de productos. Esto nos ayuda a darnos una idea de lo que depararía a esta empresa en un mes del proximo año, en terminos de cantidad de gente por vuelo y cantidad de productos minima para satisfacer al cliente sin que se desperdicien pedecederos.
