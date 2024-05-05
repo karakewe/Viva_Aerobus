@@ -1,0 +1,262 @@
+---
+title: "Untitled"
+author: "Cedrick Treviño"
+date: "2024-05-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Se manda a llamar el archivo.csv para su utilización en este código.
+#install.packages("dplyr")
+#install.packages("readr")
+
+library(readr)
+library(dplyr)
+
+
+ruta <- "C:\\Users\\karak\\OneDrive\\Documentos\\Programación\\Restudio\\Filghts TEC_Valid.csv"
+
+df <- data.frame(read.csv(ruta))
+```
+
+```{r}
+##Empezamos el proceso de limpieza y preparación de datos para su analisis
+
+#Declaramos los valores de la columna STD como valores de Fecha y hora
+
+df$STD <- as.POSIXct(df$STD, format = "%Y-%m-%d %H:%M:%S")
+
+#Declaramos un rango de fechas para quitar el año 2024 y 2025 de nuestra base de datos y solo dejar el 2023.
+
+df <- subset(df, STD >= as.POSIXct("2023-01-01 08:00:00") & STD <= as.POSIXct("2023-01-31 23:59:59"))
+
+#Acomodamos la base de datos de menor a mayor en terminos de fecha.
+
+df <- df %>% arrange(STD)
+
+#Declaramos los valores de la columna STA como valores de Fecha y hora
+
+df$STA <- as.POSIXct(df$STA, format = "%Y-%m-%d %H:%M:%S")
+
+#Hacemos una diferencia de hora entre la columna STD y STA para obtener la duración de vuelo. Este valor se guardó en una columna nueva dentro de la misma base de datos.
+
+df$DuraciónVuelo <- difftime(df$STA, df$STD, units="hours")
+
+```
+
+
+```{r}
+#Se genera un archivo.csv para su uso en el modelo matemático programado en phyton
+
+write.csv(df, file = "baselímpia.csv", row.names = FALSE)
+
+```
+
+```{r}
+##Esta parte sirve para obtener la media de horas y pasajeros por tipo de avión con variación en las capacidades en el mes de enero del año 2023.
+
+#Lista de diferentes capacidades por aviones
+
+capacidades <- c(180, 186, 220, 236, 240)
+
+Medias <- function(z) {
+  
+  # En esta parte del código buscamos filtrar los datos por capacidad 
+  
+  Aeronave_Rela <- df %>% arrange(Capacity)
+  Aeronave_Rela <- df %>% filter(Capacity == z)
+
+  # Aquí se logra cambiar los valores de sobreventa de pasajes al numero maximo de pasajeros por avíon de Capacidad z
+  
+  for(i in 1:length(Aeronave_Rela$Passengers)){
+    if(Aeronave_Rela$Passengers[i] > z){
+    Aeronave_Rela$Passengers[i] <- z
+    }
+  }
+
+  x = c()
+  # Aquí obtenemos un vector con todos los valores de Pasajeros por cada Vuelo
+  
+  for(i in 1:length(Aeronave_Rela$Passengers)){
+    x[i] <- c(Aeronave_Rela$Passengers[i])
+  }
+
+  y = c()
+  # Aquí obtenemos un vector con todos los valores de Duración por cada Vuelo
+  
+  for(i in 1:length(Aeronave_Rela$Passengers)){
+    y[i] <- c(Aeronave_Rela$DuraciónVuelo[i])
+  }
+  
+  #Se obtinene la media de horas en enero 2023 por variación en viajes de distintas capacidades
+  horam <- mean(y)
+  
+  #Se obtinene la media de pasajeros en enero 2023 por variación en viajes de distintas capacidades
+  media <- as.integer(mean(x))
+
+  cat("La media de pasajeros en aviones con capacidad de", z,"en el mes de enero 2023 fue de:", media,"\n",
+    "La media de horas en este tipo de aviones con capacidad de",z,"en el mes de enero 2023 es:", horam,"\n")
+}
+
+#Se manda a llamar la función n cantidad de veces dependiendo de la longitud del vector de capacidades.
+
+for(i in 1:length(capacidades)){
+  Medias(capacidades[i])
+}
+```
+```{r}
+## En esta parte aplicamos en cada tipo de avion por capacidad el valor de predicción de pasajeros por cada vuelo via el modelo matemático de poison
+
+for (i in 1:length(df$Aeronave)) {
+  if(df$Capacity[i] == 180){
+    df$Passengers[i] <- 138.43
+  }
+  if(df$Capacity[i] == 186){
+    df$Passengers[i] <- 138.70
+  }
+  if(df$Capacity[i] == 220){
+    df$Passengers[i] <- 159.48
+  }
+  if(df$Capacity[i] == 236){
+    df$Passengers[i] <- 159.79
+  }
+  if(df$Capacity[i] == 240){
+    df$Passengers[i] <- 162.22
+  }
+}
+```
+
+
+
+```{r}
+ruta <- "C:\\Users\\karak\\OneDrive\\Documentos\\Programación\\Restudio\\Sales TEC_Valid.csv"
+
+sales <- read.table(file = ruta , header = TRUE, sep = ',')
+
+exclude_product_types <- c("Antros", "COMBOS CREW", "OFERTAS", "Specials","Transportaciones CUN", "Transportaciones MTY","Transportaciones TLC", "VIVA PLAY", "VIVA Taxis","Vivabus", "VivaTransfer")
+
+# Filtra los datos para excluir los tipos de productos especificados
+sales <- sales %>% filter(!ProductType %in% exclude_product_types)
+
+# Muestra las primeras filas del conjunto de datos filtrado
+head(sales)
+
+# Asumiendo que tus data frames se llaman sales_data y flights_data
+# Seleccionamos solo las columnas necesarias de flights_data
+df_subset <- df[, c("Flight_ID","Aeronave","Capacity","Passengers", "STD", "STA")]
+
+# Realizamos el merge con sales_data, default es un inner join
+combined_data <- merge(sales, df_subset, by = "Flight_ID")
+
+head(combined_data)
+# Mostramos las primeras filas para verificar
+View(combined_data)
+```
+
+```{r}
+#Aseguramos que STD es de tipo POSIxct, tipo fecha.
+combined_data$STD <- as.POSIXct(combined_data$STD, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+
+#Extraemos la hora en formato numérico como hora.decimal
+combined_data$HoraDecimal <- as.numeric(format(combined_data$STD, "%H")) + as.numeric(format(combined_data$STD, "%M")) / 60 + as.numeric(format(combined_data$STD, "%S")) / 3600
+
+#Definimos los intervalos en formato decimal
+breaks_decimal <- c(0, 12, 19, 24)  # 00:00, 12:00, 19:00, 24:00
+labels <- c("mañana", "tarde", "noche")
+
+#Clasificamos las horas del día
+combined_data$horario <- cut(combined_data$HoraDecimal, breaks = breaks_decimal, labels = labels, include.lowest = TRUE, right = FALSE) 
+
+# Verificamos el resultado
+head(combined_data)
+View(combined_data)
+```
+
+```{r}
+## Se crea un archivo para ser mandado en un 
+write.csv(combined_data, file = "Combined_data.csv", row.names = FALSE)
+```
+
+```{r}
+
+#Lista de diferentes capacidades por aviones
+
+capapoison <- c(138.42, 138.70, 159.48, 159.79, 162.22)
+
+#Se obtienen las matriculas de avion existentes en el data.frame en un vector. Para luego quitar los repetidos
+Matriculas <- combined_data$Aeronave
+Aeronave <- unique(Matriculas)
+
+#Con esta función obtenemos la cantidad total de viajes hechos por una aeronave en todo el mes de enero del 2023
+matcont <- function(x){
+  count <- 0
+  
+  for (i in 1:length(df$Aeronave)) {
+    if(df$Aeronave[i] == x){
+      count <- count + 1
+    }
+  }
+  
+  return(count)
+  
+}
+
+#Se declara un vector para guardar valores
+mediaViajes <- c()
+
+#Se hace un for para llamar a la función por matricula para luego dividir ese numero entre la cantidad de dias en el mes de enero para obtener un promedio de viajes por dia. Esto se guardarán en el vector anterior.
+for (i in 1:length(Aeronave)) {
+ mediaViajes[i] <- matcont(Aeronave[i]) / 31
+ 
+}
+
+#Se genera un data. frame con los nuevos atributos
+Pois <- data.frame(Aeronave, mediaViajes)
+
+Pois
+```
+
+```{r}
+#Se declara un subset de data.frame combined_data con las columnas seleccionadas
+df2_subset <- combined_data[, c("Flight_ID","Aeronave", "Passengers", "ProductType", "ProductName", "Quantity")]
+
+#Hacemos un join con el subset anterior y el data.frame Pois con la correlación de Aeronave que ambos df comparten
+comb_Pois <- merge(Pois, df2_subset, by = "Aeronave")
+
+head(comb_Pois)
+View(comb_Pois)
+
+```
+
+```{r}
+#Hacemos un nuevo csv para usarlo en el phyton y obtener
+write.csv(comb_Pois, file = "PoisonQuantityMatricula.csv", row.names = FALSE)
+```
+
+```{r}
+
+comb_Final <- comb_Pois
+
+for(i in 1:length(comb_Final$Quantity)){
+  if(comb_Final$Quantity[i] > 1){
+    comb_Final$Quantity[i] <- comb_Final$Quantity[i] - 1
+  }
+}
+
+comb_Final$mediaViajes <- NULL
+
+head(comb_Final)
+View(comb_Final)
+
+```
+
+```{r}
+write.csv(comb_Final, file = "Predicción.csv", row.names = FALSE)
+```
+
+
+
